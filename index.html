@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>OCR — Gemini</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&family=Outfit:wght@300;400;600;700&display=swap');
+
+:root {
+  --bg:#f7f5f0;--sur:#fff;--bdr:#e2ddd5;--ink:#1c1917;--dim:#78716c;
+  --ja:#7c3aed;--en:#0369a1;--ok:#15803d;--err:#b91c1c;--warn:#b45309;
+  --sh:0 1px 3px rgba(0,0,0,.07),0 4px 14px rgba(0,0,0,.05);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:'Outfit','Noto Sans JP',sans-serif;font-weight:300;min-height:100vh;padding-bottom:64px;}
+
+.hd{background:var(--sur);border-bottom:1px solid var(--bdr);padding:0 18px;height:50px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;box-shadow:0 1px 6px rgba(0,0,0,.06);}
+.logo{font-weight:700;font-size:1rem;letter-spacing:-.02em;flex:1;}
+.logo span{color:var(--dim);font-weight:300;}
+.tabs{display:flex;background:var(--bg);border:1px solid var(--bdr);border-radius:7px;padding:3px;gap:2px;}
+.tab{padding:5px 13px;border:none;border-radius:5px;font-family:'Outfit',sans-serif;font-size:0.75rem;font-weight:600;cursor:pointer;background:transparent;color:var(--dim);transition:all .15s;}
+.tab.ja.on{background:var(--ja);color:#fff;}
+.tab.en.on{background:var(--en);color:#fff;}
+
+.bd{max-width:660px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:12px;}
+.card{background:var(--sur);border:1px solid var(--bdr);border-radius:13px;padding:16px;box-shadow:var(--sh);}
+.ct{font-size:0.6rem;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:10px;}
+
+.banner{border-radius:9px;padding:11px 13px;font-size:0.8rem;line-height:1.6;}
+.banner.ja{background:#f5f3ff;border:1px solid #ddd6fe;color:#5b21b6;}
+.banner.en{background:#f0f9ff;border:1px solid #bae6fd;color:#075985;}
+.banner strong{font-weight:600;}
+.banner .sub{margin-top:3px;font-size:0.7rem;opacity:.75;}
+
+.kw{position:relative;}
+.kw input{width:100%;background:var(--bg);border:1.5px solid var(--bdr);border-radius:8px;padding:10px 38px 10px 12px;font-family:'Outfit',monospace;font-size:0.8rem;color:var(--ink);outline:none;transition:border-color .15s;-webkit-appearance:none;}
+.kw input:focus{border-color:var(--ja);}
+.kw input.en:focus{border-color:var(--en);}
+.eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:.85rem;color:var(--dim);user-select:none;}
+
+.drop{border:2px dashed var(--bdr);border-radius:11px;padding:24px 14px;text-align:center;cursor:pointer;position:relative;transition:all .15s;background:var(--bg);}
+.drop.ov,.drop:hover{border-color:var(--ja);background:#faf5ff;}
+.drop.en-m.ov,.drop.en-m:hover{border-color:var(--en);background:#f0f9ff;}
+.drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:16px;}
+.di{font-size:1.8rem;display:block;margin-bottom:6px;}
+.drop p{font-size:0.78rem;color:var(--dim);line-height:1.65;}
+.drop strong{color:var(--ink);font-weight:500;}
+
+.fchip{display:none;background:var(--bg);border:1px solid var(--bdr);border-radius:8px;padding:9px 12px;margin-top:9px;}
+.fchip .fn{font-size:0.78rem;font-weight:500;word-break:break-all;margin-bottom:2px;}
+.fchip .fm{font-size:0.68rem;color:var(--dim);}
+
+.sbrow{display:flex;gap:7px;}
+.scbtn{flex:1;padding:8px;background:var(--bg);border:1.5px solid var(--bdr);border-radius:7px;font-family:'Outfit',sans-serif;font-size:0.75rem;font-weight:500;cursor:pointer;color:var(--dim);text-align:center;transition:all .12s;}
+.scbtn.ja.on{border-color:var(--ja);color:var(--ja);background:#f5f3ff;}
+.scbtn.en.on{border-color:var(--en);color:var(--en);background:#f0f9ff;}
+
+.rrow{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.nf{display:flex;flex-direction:column;gap:4px;}
+.nf label{font-size:0.65rem;color:var(--dim);font-weight:500;}
+.nf input{background:var(--bg);border:1.5px solid var(--bdr);border-radius:7px;padding:8px 10px;font-family:'Outfit',sans-serif;font-size:0.88rem;color:var(--ink);outline:none;width:100%;transition:border-color .15s;-webkit-appearance:none;}
+.nf input:focus{border-color:var(--en);}
+
+.etabox{display:none;margin-top:8px;padding:8px 10px;border-radius:7px;background:var(--bg);border:1px solid var(--bdr);font-size:0.73rem;line-height:1.6;}
+
+.rcrow{display:flex;gap:9px;}
+.run{flex:1;padding:13px;border:none;border-radius:10px;font-family:'Outfit',sans-serif;font-size:0.88rem;font-weight:600;letter-spacing:.04em;cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent;}
+.run.ja{background:var(--ja);color:#fff;}
+.run.en{background:var(--en);color:#fff;}
+.run:active{transform:scale(.98);}
+.run:disabled{background:var(--bdr);color:var(--dim);cursor:not-allowed;transform:none;}
+.cancel{display:none;padding:13px 16px;border:2px solid var(--err);border-radius:10px;background:transparent;color:var(--err);font-family:'Outfit',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;}
+.cancel:active{background:var(--err);color:#fff;}
+
+.progcard{display:none;}
+.progrow{display:flex;justify-content:space-between;font-size:0.75rem;color:var(--dim);margin-bottom:7px;}
+.progrow strong{color:var(--ink);}
+.barbg{background:var(--bg);border-radius:100px;height:6px;overflow:hidden;border:1px solid var(--bdr);}
+.bar{height:100%;border-radius:100px;width:0%;transition:width .3s;}
+.bar.ja{background:var(--ja);}
+.bar.en{background:var(--en);}
+.progsub{margin-top:7px;font-size:0.7rem;color:var(--dim);min-height:1.3em;}
+
+.tbcard{display:none;}
+.tbinner{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.tbstat{font-size:0.76rem;color:var(--dim);}
+.tbstat strong{color:var(--ok);}
+.tbbtns{display:flex;gap:7px;}
+.tbtn{padding:6px 12px;background:var(--bg);border:1.5px solid var(--bdr);border-radius:7px;font-family:'Outfit',sans-serif;font-size:0.72rem;font-weight:500;color:var(--dim);cursor:pointer;transition:all .12s;}
+.tbtn:active{border-color:var(--ink);color:var(--ink);}
+
+.rc{background:var(--sur);border:1px solid var(--bdr);border-radius:13px;overflow:hidden;box-shadow:var(--sh);margin-bottom:11px;animation:up .22s ease forwards;}
+@keyframes up{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.rh{background:var(--bg);border-bottom:1px solid var(--bdr);padding:8px 13px;display:flex;align-items:center;justify-content:space-between;}
+.pl{font-size:0.63rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;}
+.pl.ja{color:var(--ja);}
+.pl.en{color:var(--en);}
+.cpbtn{padding:3px 9px;background:var(--sur);border:1px solid var(--bdr);border-radius:5px;font-family:'Outfit',sans-serif;font-size:0.65rem;font-weight:500;color:var(--dim);cursor:pointer;}
+.cpbtn:active{border-color:var(--ink);color:var(--ink);}
+.rbody{padding:14px 16px;}
+.rt{font-size:0.83rem;line-height:1.9;white-space:pre-wrap;word-break:break-all;font-family:'Noto Sans JP','Outfit',sans-serif;}
+.rt.en-t{font-family:'Outfit',sans-serif;line-height:1.8;}
+.rerr{font-size:0.78rem;color:var(--err);}
+.rload{display:flex;align-items:center;gap:9px;font-size:0.75rem;color:var(--dim);}
+.spin{width:15px;height:15px;border:2px solid var(--bdr);border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0;}
+.spin.ja{border-top-color:var(--ja);}
+.spin.en{border-top-color:var(--en);}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.empty{padding:40px 20px;text-align:center;}
+.ei{font-size:2.2rem;opacity:.18;display:block;margin-bottom:9px;}
+.empty p{font-size:0.78rem;color:var(--dim);line-height:1.8;}
+
+.stbar{position:fixed;bottom:0;left:0;right:0;height:36px;background:var(--sur);border-top:1px solid var(--bdr);display:flex;align-items:center;padding:0 16px;gap:9px;font-size:0.66rem;color:var(--dim);z-index:100;}
+.stdot{width:6px;height:6px;border-radius:50%;background:var(--bdr);flex-shrink:0;}
+.stdot.ja-l{background:var(--ja);animation:bl 1.6s ease infinite;}
+.stdot.en-l{background:var(--en);animation:bl 1.6s ease infinite;}
+.stdot.ok{background:var(--ok);}
+.stdot.er{background:var(--err);}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.25}}
+.stmdl{margin-left:auto;opacity:.55;font-size:0.6rem;}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="logo">OCR <span>/ Gemini</span></div>
+  <div class="tabs">
+    <button class="tab ja on" id="btnJA" onclick="setLang('ja')">日本語</button>
+    <button class="tab en"    id="btnEN" onclick="setLang('en')">English</button>
+  </div>
+</div>
+
+<div class="bd">
+
+  <div class="banner ja" id="banner">
+    <strong>日本語モード</strong> — Gemini 2.5 Flash
+    <div class="sub">縦書き・旧字体・横書き対応 · 約0.03円/ページ</div>
+  </div>
+
+  <div class="card">
+    <div class="ct">Google AI Studio APIキー</div>
+    <div class="kw">
+      <input type="password" id="apiKey" placeholder="AIza..." autocomplete="off">
+      <span class="eye" id="eyeBtn">👁</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ct">ファイル</div>
+    <div class="drop" id="drop">
+      <input type="file" id="fileInput" accept=".pdf,image/*">
+      <span class="di">📄</span>
+      <p><strong>タップまたはドロップ</strong><br>PDF · PNG · JPG · WEBP</p>
+    </div>
+    <div class="fchip" id="fchip">
+      <div class="fn" id="fname"></div>
+      <div class="fm" id="fmeta"></div>
+    </div>
+  </div>
+
+  <div class="card" id="scaleCard">
+    <div class="ct">PDF 解像度スケール</div>
+    <div class="sbrow">
+      <div class="scbtn ja" data-s="1">×1 標準</div>
+      <div class="scbtn ja on" data-s="2">×2 推奨</div>
+      <div class="scbtn ja" data-s="3">×3 高精細</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ct" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>ページ範囲（PDF）</span>
+      <span id="pgBadge" style="display:none;font-size:0.68rem;font-weight:500;color:var(--dim);background:var(--bg);border:1px solid var(--bdr);padding:2px 8px;border-radius:20px;"></span>
+    </div>
+    <div class="rrow">
+      <div class="nf"><label>開始ページ</label><input type="number" id="pgFrom" min="1" value="1"></div>
+      <div class="nf"><label>終了ページ（空白=全）</label><input type="number" id="pgTo" min="1" placeholder="—"></div>
+    </div>
+    <div class="etabox" id="etaBox"></div>
+  </div>
+
+  <div class="rcrow">
+    <button class="run ja" id="runBtn" disabled>▶ OCR 実行</button>
+    <button class="cancel" id="cancelBtn">✕ 中止</button>
+  </div>
+
+  <div class="card progcard" id="progCard">
+    <div class="progrow">
+      <span id="progMain">処理中...</span>
+      <strong id="progFrac"></strong>
+    </div>
+    <div class="barbg"><div class="bar ja" id="progBar"></div></div>
+    <div class="progsub" id="progSub"></div>
+  </div>
+
+  <div class="card tbcard" id="tbCard">
+    <div class="tbinner">
+      <div class="tbstat">完了 <strong id="nOk">0</strong> ページ</div>
+      <div class="tbbtns">
+        <button class="tbtn" id="copyAll">全文コピー</button>
+        <button class="tbtn" id="dlTxt">TXT保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="results"></div>
+
+  <div class="card empty" id="emptyCard">
+    <span class="ei">🔍</span>
+    <p>言語を選んでファイルを選択し<br>OCR実行してください</p>
+  </div>
+
+</div>
+
+<div class="stbar">
+  <div class="stdot" id="stDot"></div>
+  <span id="stTxt">待機中</span>
+  <div class="stmdl">gemini-2.5-flash · Google AI</div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── State ──────────────────────────────────────────────────────
+let lang      = 'ja';
+let pdfScale  = 2;
+let selFile   = null;
+let totalPgs  = 0;
+let running   = false;
+let cancelled = false;
+const texts   = {};
+
+// ── Constants ──────────────────────────────────────────────────
+const WAIT_MS  = 7000;   // レート制限待機
+const API_SEC  = 5;      // 1ページ処理の概算秒数
+const MODEL    = 'gemini-2.5-flash';
+const EP       = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+const PROMPT_JA = `この画像に含まれるすべてのテキストを正確に抽出してください。
+- 縦書き・横書きどちらも対応
+- レイアウトや改行をできる限り保持
+- ルビ・注釈は（）内に記載
+- 図・表のキャプションも含める
+- テキスト以外の説明は不要`;
+
+const PROMPT_EN = `Extract all text from this image with high accuracy.
+- Preserve original line breaks and paragraph structure
+- Include table content with structure
+- Include captions and footnotes
+- Output text only, no commentary`;
+
+// ── Gemini API call ────────────────────────────────────────────
+async function geminiOCR(apiKey, b64, mime, isJa) {
+  const body = {
+    contents: [{
+      parts: [
+        { inline_data: { mime_type: mime, data: b64 } },
+        { text: isJa ? PROMPT_JA : PROMPT_EN }
+      ]
+    }],
+    generationConfig: { temperature: 0, maxOutputTokens: 8192 }
+  };
+  const r = await fetch(`${EP}?key=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    throw new Error(e?.error?.message || `HTTP ${r.status}`);
+  }
+  const d = await r.json();
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || '（テキストなし）';
+}
+
+// ── DOM helper ────────────────────────────────────────────────
+const g = id => document.getElementById(id);
+
+function setStatus(txt, mode = '') {
+  g('stTxt').textContent = txt;
+  g('stDot').className   = 'stdot' + (mode ? ' ' + mode : '');
+}
+
+// ── ETA ───────────────────────────────────────────────────────
+function fmtETA(sec) {
+  return sec < 60 ? `約${Math.ceil(sec)}秒` : `約${Math.ceil(sec / 60)}分`;
+}
+
+function updateETA() {
+  if (!totalPgs) return;
+  const from    = Math.max(1, parseInt(g('pgFrom').value) || 1);
+  const rawTo   = parseInt(g('pgTo').value);
+  const to      = (!isNaN(rawTo) && rawTo >= from) ? Math.min(rawTo, totalPgs) : totalPgs;
+  const n       = Math.max(0, to - from + 1);
+  const box     = g('etaBox');
+  if (n <= 0) { box.style.display = 'none'; return; }
+
+  const throttle = n >= 20;
+  const sec      = throttle ? n * (API_SEC + WAIT_MS / 1000) : n * API_SEC;
+  const fin      = new Date(Date.now() + sec * 1000);
+  const hh       = fin.getHours().toString().padStart(2, '0');
+  const mm       = fin.getMinutes().toString().padStart(2, '0');
+
+  box.style.display = '';
+  box.innerHTML =
+    `<span style="color:var(${throttle ? '--warn' : '--ok'})">`
+    + (throttle ? '⏱ ページ間7秒待機あり' : '✓ 待機なし')
+    + `</span> &nbsp;|&nbsp; `
+    + `<strong>${fmtETA(sec)}</strong> — 開始すれば <strong>${hh}:${mm}</strong> 頃に終了`;
+}
+
+// ── Language switch ───────────────────────────────────────────
+function setLang(l) {
+  lang = l;
+  g('btnJA').className = 'tab ja' + (l === 'ja' ? ' on' : '');
+  g('btnEN').className = 'tab en' + (l === 'en' ? ' on' : '');
+
+  const isJa = l === 'ja';
+  g('banner').className = 'banner ' + l;
+  g('banner').innerHTML = isJa
+    ? '<strong>日本語モード</strong> — Gemini 2.5 Flash<div class="sub">縦書き・旧字体・横書き対応 · 約0.03円/ページ</div>'
+    : '<strong>English mode</strong> — Gemini 2.5 Flash<div class="sub">Preserves layout & tables · ~$0.0002/page</div>';
+
+  g('apiKey').className   = l;
+  g('runBtn').className   = 'run ' + l;
+  g('progBar').className  = 'bar ' + l;
+  g('scaleCard').style.display = isJa ? 'block' : 'none';
+  g('drop').className     = 'drop' + (isJa ? '' : ' en-m');
+
+  document.querySelectorAll('.scbtn').forEach(b =>
+    b.className = 'scbtn ' + l + (Number(b.dataset.s) === pdfScale ? ' on' : ''));
+
+  clearResults();
+  updateRunBtn();
+}
+
+// ── Scale buttons ─────────────────────────────────────────────
+document.querySelectorAll('.scbtn').forEach(b =>
+  b.addEventListener('click', () => {
+    pdfScale = Number(b.dataset.s);
+    document.querySelectorAll('.scbtn').forEach(x =>
+      x.className = 'scbtn ' + lang + (Number(x.dataset.s) === pdfScale ? ' on' : ''));
+  })
+);
+
+// ── API key ───────────────────────────────────────────────────
+g('eyeBtn').addEventListener('click', () => {
+  const el = g('apiKey');
+  el.type = el.type === 'password' ? 'text' : 'password';
+});
+const savedK = sessionStorage.getItem('gcr_k2');
+if (savedK) g('apiKey').value = savedK;
+g('apiKey').addEventListener('input', e => {
+  sessionStorage.setItem('gcr_k2', e.target.value);
+  updateRunBtn();
+});
+
+// ── Page range → ETA ─────────────────────────────────────────
+g('pgFrom').addEventListener('input', updateETA);
+g('pgTo').addEventListener('input',   updateETA);
+
+// ── Cancel ────────────────────────────────────────────────────
+g('cancelBtn').addEventListener('click', () => {
+  if (!running) return;
+  cancelled = true;
+  g('cancelBtn').textContent  = '中止中...';
+  g('cancelBtn').style.opacity = '0.5';
+});
+
+// ── File handling ─────────────────────────────────────────────
+g('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) setFile(e.target.files[0]);
+});
+const dz = g('drop');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('ov'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('ov'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('ov');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+function setFile(f) {
+  selFile = f; totalPgs = 0;
+  g('fchip').style.display = 'block';
+  g('fname').textContent   = f.name;
+  g('fmeta').textContent   = `${(f.size / 1024).toFixed(0)} KB · ${f.type || 'unknown'}`;
+
+  if (getMime(f) === 'application/pdf') {
+    f.arrayBuffer()
+      .then(buf => pdfjsLib.getDocument({ data: buf }).promise)
+      .then(pdf => {
+        totalPgs = pdf.numPages;
+        g('pgBadge').textContent  = `全 ${totalPgs} ページ`;
+        g('pgBadge').style.display = '';
+        g('pgFrom').value = 1;
+        g('pgTo').value   = totalPgs;
+        updateETA();
+      })
+      .catch(() => g('pgBadge').style.display = 'none');
+  } else {
+    totalPgs = 1;
+    g('pgBadge').style.display = 'none';
+    g('etaBox').style.display  = 'none';
+  }
+  updateRunBtn();
+}
+
+function updateRunBtn() {
+  g('runBtn').disabled = !(selFile && g('apiKey').value.trim());
+}
+
+// ── Misc helpers ──────────────────────────────────────────────
+function getMime(f) {
+  if (f.type) return f.type;
+  const e = f.name.split('.').pop().toLowerCase();
+  return { pdf:'application/pdf', jpg:'image/jpeg', jpeg:'image/jpeg',
+           png:'image/png', webp:'image/webp' }[e] || 'image/png';
+}
+
+function fileToB64(f) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload  = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(f);
+  });
+}
+
+// PDF → 画像（指定範囲のみ・進捗表示）
+async function pdfToImages(file, sc, from, to) {
+  const buf  = await file.arrayBuffer();
+  const pdf  = await pdfjsLib.getDocument({ data: buf }).promise;
+  const end  = Math.min(to, pdf.numPages);
+  const span = end - from + 1;
+  const out  = [];
+
+  for (let i = from; i <= end; i++) {
+    if (cancelled) break;
+
+    const pct = Math.round((i - from) / span * 100);
+    g('progMain').textContent = `PDF 読み込み ${i - from + 1} / ${span} ページ`;
+    g('progFrac').textContent  = `${pct}%`;
+    g('progBar').style.width   = `${pct}%`;
+    g('progSub').textContent   = `p.${i} をレンダリング中...`;
+
+    const page = await pdf.getPage(i);
+    const vp   = page.getViewport({ scale: sc });
+    const cv   = document.createElement('canvas');
+    cv.width   = vp.width;
+    cv.height  = vp.height;
+    await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    out.push({ pageNum: i, b64: cv.toDataURL('image/jpeg', 0.92).split(',')[1] });
+  }
+  return out;
+}
+
+function clearResults() {
+  Object.keys(texts).forEach(k => delete texts[k]);
+  g('results').innerHTML        = '';
+  g('tbCard').style.display     = 'none';
+  g('emptyCard').style.display  = 'block';
+}
+
+// ── Result cards ──────────────────────────────────────────────
+function addCard(idx, label) {
+  const c = document.createElement('div');
+  c.className = 'rc'; c.id = `rc${idx}`;
+  c.innerHTML = `
+    <div class="rh">
+      <span class="pl ${lang}">${label}</span>
+      <button class="cpbtn" data-i="${idx}">コピー</button>
+    </div>
+    <div class="rbody" id="rb${idx}">
+      <div class="rload"><div class="spin ${lang}"></div><span>OCR処理中...</span></div>
+    </div>`;
+  g('results').appendChild(c);
+  c.querySelector(`[data-i="${idx}"]`).addEventListener('click', () =>
+    cpText(texts[idx] || '', c.querySelector(`[data-i="${idx}"]`)));
+}
+
+function setCard(idx, text, isErr = false) {
+  const b = g(`rb${idx}`);
+  if (!b) return;
+  texts[idx] = text;
+  if (isErr) {
+    b.innerHTML = `<div class="rerr">${text}</div>`;
+  } else {
+    const cls = lang === 'en' ? 'rt en-t' : 'rt';
+    b.innerHTML = `<div class="${cls}">${text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+  }
+}
+
+function cpText(t, btn) {
+  navigator.clipboard.writeText(t).then(() => {
+    const o = btn.textContent;
+    btn.textContent = '✓ OK';
+    setTimeout(() => btn.textContent = o, 1400);
+  });
+}
+
+// ── Toolbar ───────────────────────────────────────────────────
+g('copyAll').addEventListener('click', () =>
+  cpText(Object.values(texts).join('\n\n---\n\n'), g('copyAll')));
+
+g('dlTxt').addEventListener('click', () => {
+  const all  = Object.entries(texts)
+    .map(([i, t]) => `=== Page ${Number(i) + 1} ===\n${t}`).join('\n\n');
+  const base = selFile?.name.replace(/\.[^.]+$/, '') || 'ocr';
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(new Blob([all], { type: 'text/plain;charset=utf-8' }));
+  a.download = base + '_ocr.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ── RUN ───────────────────────────────────────────────────────
+g('runBtn').addEventListener('click', async () => {
+  if (running || !selFile) return;
+  const apiKey = g('apiKey').value.trim();
+  if (!apiKey) { alert('APIキーを入力してください'); return; }
+
+  // 初期化
+  running = true; cancelled = false;
+  g('runBtn').disabled          = true;
+  g('cancelBtn').style.display  = 'inline-block';
+  g('cancelBtn').style.opacity  = '1';
+  g('cancelBtn').textContent    = '✕ 中止';
+  g('results').innerHTML        = '';
+  Object.keys(texts).forEach(k => delete texts[k]);
+  g('emptyCard').style.display  = 'none';
+  g('tbCard').style.display     = 'none';
+  g('progCard').style.display   = 'block';
+  g('progBar').style.width      = '0%';
+  g('progSub').textContent      = '';
+
+  const mime  = getMime(selFile);
+  const isPdf = mime === 'application/pdf';
+  const isJa  = lang === 'ja';
+
+  try {
+    let pages = [];
+    setStatus('準備中...', lang + '-l');
+
+    if (isPdf) {
+      const sc    = isJa ? pdfScale : 2;
+      const from  = Math.max(1, parseInt(g('pgFrom').value) || 1);
+      const rawTo = parseInt(g('pgTo').value);
+      const to    = isNaN(rawTo) ? (totalPgs || 9999) : rawTo;
+
+      // PDF読み込み（pdfToImages内で進捗表示）
+      const imgs = await pdfToImages(selFile, sc, from, to);
+      if (cancelled) throw new Error('CANCELLED');
+      pages = imgs.map(p => ({ label: `PAGE ${p.pageNum}`, b64: p.b64, mime: 'image/jpeg' }));
+    } else {
+      g('progMain').textContent = '画像を読み込み中...';
+      g('progFrac').textContent  = '';
+      const b64 = await fileToB64(selFile);
+      pages = [{ label: 'IMAGE', b64, mime }];
+    }
+
+    if (cancelled) throw new Error('CANCELLED');
+
+    const total    = pages.length;
+    const throttle = total >= 20;
+
+    // 全カードを先に生成（処理前にリスト表示）
+    pages.forEach((p, i) => addCard(i, p.label));
+
+    // プログレスバーをOCR用にリセット
+    g('progBar').style.width = '0%';
+
+    let ok = 0;
+    for (let i = 0; i < total; i++) {
+      if (cancelled) break;
+
+      // 残り時間の計算
+      const rem    = total - i;
+      const remSec = throttle ? rem * (API_SEC + WAIT_MS / 1000) : rem * API_SEC;
+      const fin    = new Date(Date.now() + remSec * 1000);
+      const eta    = `${fin.getHours().toString().padStart(2,'0')}:${fin.getMinutes().toString().padStart(2,'0')}`;
+
+      g('progMain').textContent = `OCR処理中 ${i + 1} / ${total} — 完了予想 ${eta}`;
+      g('progFrac').textContent  = `${i + 1}/${total}`;
+      g('progBar').style.width   = `${Math.round(i / total * 100)}%`;
+      g('progSub').textContent   = `${pages[i].label} を送信中...`;
+      setStatus(`処理中 ${i + 1}/${total}`, lang + '-l');
+
+      try {
+        const t = await geminiOCR(apiKey, pages[i].b64, pages[i].mime, isJa);
+        setCard(i, t);
+        ok++;
+        g('progSub').textContent = `✓ ${pages[i].label} 完了`;
+      } catch (e) {
+        setCard(i, `エラー: ${e.message}`, true);
+        g('progSub').textContent = `✗ ${pages[i].label}: ${e.message}`;
+      }
+
+      // スロットル（カウントダウン付き）
+      if (throttle && i < total - 1 && !cancelled) {
+        for (let s = Math.floor(WAIT_MS / 1000); s > 0; s--) {
+          if (cancelled) break;
+          const fin2 = new Date(Date.now() + ((total-i-1)*(API_SEC+WAIT_MS/1000)+s)*1000);
+          const eta2 = `${fin2.getHours().toString().padStart(2,'0')}:${fin2.getMinutes().toString().padStart(2,'0')}`;
+          g('progSub').textContent = `⏳ 次のページまで ${s}秒待機 — 完了予想 ${eta2}`;
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+    }
+
+    g('progBar').style.width = '100%';
+    const wasCancelled = cancelled;
+    setTimeout(() => {
+      g('progCard').style.display = 'none';
+      g('tbCard').style.display   = 'block';
+      g('nOk').textContent        = ok;
+      setStatus(
+        wasCancelled ? `中止 (${ok}/${total}p)` : `完了 ${ok}/${total}ページ`,
+        wasCancelled ? 'er' : 'ok'
+      );
+    }, 300);
+
+  } catch (e) {
+    g('progCard').style.display = 'none';
+    if (e.message === 'CANCELLED') {
+      const done = Object.keys(texts).length;
+      if (done > 0) { g('tbCard').style.display = 'block'; g('nOk').textContent = done; }
+      else g('emptyCard').style.display = 'block';
+      setStatus('中止しました', 'er');
+    } else {
+      g('emptyCard').style.display = 'block';
+      g('emptyCard').querySelector('p').textContent = `エラー: ${e.message}`;
+      setStatus('エラー', 'er');
+    }
+  }
+
+  running = false;
+  g('runBtn').disabled         = false;
+  g('cancelBtn').style.display = 'none';
+});
+</script>
+</body>
+</html>
